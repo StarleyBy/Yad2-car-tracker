@@ -25,23 +25,17 @@ const Yad2Parser = {
     try {
       if (item.type === 'ad' || !item.id) return null;
 
-      // Clean Make and Model
       const make = item.title_1 || item.title || 'Unknown';
-      // Version/Trim: search for non-duplicate info
       let trim = item.title_2 || item.version || item.sub_title || '';
       
-      // If trim is same as title, clear it to avoid duplication
       if (trim === make || trim === item.title) {
         trim = item.version || item.sub_title || '';
         if (trim === make) trim = '';
       }
 
       let hand = '';
-      if (item.hand !== undefined && item.hand !== null) {
-        hand = item.hand;
-      } else if (item.hand_number !== undefined && item.hand_number !== null) {
-        hand = item.hand_number;
-      }
+      if (item.hand !== undefined && item.hand !== null) hand = item.hand;
+      else if (item.hand_number !== undefined && item.hand_number !== null) hand = item.hand_number;
 
       return {
         id: item.id.toString(),
@@ -65,37 +59,34 @@ const Yad2Parser = {
   },
 
   parseCarCard(card) {
-    const titleEl = card.querySelector('[data-testid="item-title"]') || card.querySelector('span[class*="heading"]');
-    const title = titleEl ? titleEl.innerText.trim() : '';
+    const title = this.extractText(card, '[data-testid="item-title"]') || 
+                  this.extractText(card, 'span[class*="heading"]') ||
+                  this.extractText(card, 'div[class*="title"]') ||
+                  'Unknown Car';
+
+    const priceText = this.extractText(card, '[data-testid="item-price"]') || 
+                      this.extractText(card, 'span[class*="price"]') ||
+                      this.extractText(card, 'div[class*="price"]');
     
-    // Improved DOM trim selection: specifically look for a DIFFERENT element
-    let trim = '';
-    const subtitleEl = card.querySelector('[data-testid="item-subtitle"]') || 
-                       card.querySelector('.subtitle') || 
-                       card.querySelector('[class*="subtitle"]');
-    
-    if (subtitleEl && subtitleEl.innerText.trim() !== title) {
-      trim = subtitleEl.innerText.trim();
-    }
+    let trim = this.extractText(card, '[data-testid="item-subtitle"]') || 
+               this.extractText(card, '.subtitle') || 
+               this.extractText(card, '[class*="subtitle"]');
 
     const spans = Array.from(card.querySelectorAll('span, div'))
       .map(el => el.innerText.trim())
-      .filter(t => t.length > 0 && t.length < 80);
+      .filter(t => t.length > 0 && t.length < 100);
 
-    // If still no trim, try to find the line that follows the title but is NOT the title
-    if (!trim && title) {
+    if (trim === title) trim = '';
+    
+    if (!trim && title !== 'Unknown Car') {
       const titleIndex = spans.indexOf(title);
-      // Look at the next few spans to find the description
-      for (let i = titleIndex + 1; i < titleIndex + 4 && i < spans.length; i++) {
-        const candidate = spans[i];
-        if (candidate && 
-            candidate !== title && 
-            !/^\d{4}$/.test(candidate) && 
-            !candidate.includes('₪') && 
-            !candidate.includes('ק"מ') &&
-            candidate.length > 5) {
-          trim = candidate;
-          break;
+      if (titleIndex !== -1) {
+        for (let i = titleIndex + 1; i < titleIndex + 5 && i < spans.length; i++) {
+          const c = spans[i];
+          if (c && c !== title && c.length > 5 && !c.includes('₪') && !/^\d{4}$/.test(c)) {
+            trim = c;
+            break;
+          }
         }
       }
     }
@@ -103,18 +94,16 @@ const Yad2Parser = {
     let year = '';
     const yearMatch = spans.find(t => /(?:שנה|year)?\s*(20\d{2}|19\d{2})/i.test(t));
     if (yearMatch) {
-      const match = yearMatch.match(/(20\d{2}|19\d{2})/);
-      if (match) year = match[1];
+      const m = yearMatch.match(/(20\d{2}|19\d{2})/);
+      if (m) year = m[1];
     }
     
     let hand = '';
-    const handPattern = /יд?\s*(\d+)/i;
-    for (const text of spans) {
-      const match = text.match(handPattern);
-      if (match) {
-        hand = match[1];
-        break;
-      }
+    const handPattern = /יד\s*(\d+)/;
+    const handStr = spans.find(t => handPattern.test(t));
+    if (handStr) {
+      const m = handStr.match(handPattern);
+      if (m) hand = m[1];
     }
 
     let mileage = '';
@@ -130,9 +119,9 @@ const Yad2Parser = {
     
     return {
       id: link || `${title}_${priceText}_${year}`,
-      title: title || (spans.length > 0 ? spans[0] : 'Unknown Car'),
-      trim: trim || '',
-      price: this.parsePrice(this.extractText(card, '[data-testid="item-price"]') || ''),
+      title,
+      trim,
+      price: this.parsePrice(priceText),
       city: '', 
       mileage,
       year,
