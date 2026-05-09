@@ -12,7 +12,9 @@
   ],
 
   "host_permissions": [
-    "https://www.yad2.co.il/*"
+    "https://www.yad2.co.il/*",
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*"
   ],
 
   "background": {
