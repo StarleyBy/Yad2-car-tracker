@@ -25,13 +25,11 @@ const Yad2Parser = {
     try {
       if (item.type === 'ad' || !item.id) return null;
 
-      const title = item.title || 
-                    (item.title_1 && item.title_2 ? `${item.title_1} ${item.title_2}` : item.title_1) || 
-                    'Unknown';
+      // Clean Make and Model
+      const make = item.title || item.title_1 || 'Unknown';
+      // Version/Trim is often in title_2 or version
+      const trim = item.title_2 || item.version || item.sub_title || '';
 
-      // Cleanly extract Hand from JSON. 
-      // In Yad2 feed items, it's often in 'hand' or 'hand_number'
-      // Or it might be in the 'feed_item_info' array
       let hand = '';
       if (item.hand !== undefined && item.hand !== null) {
         hand = item.hand;
@@ -41,7 +39,8 @@ const Yad2Parser = {
 
       return {
         id: item.id.toString(),
-        title: title,
+        title: make,
+        trim: trim,
         price: (item.price || '').toString().replace(/[^0-9]/g, ''),
         city: item.city || item.area || '',
         mileage: (item.kilometers || item.mileage || '').toString().replace(/[^0-9]/g, ''),
@@ -60,14 +59,33 @@ const Yad2Parser = {
   },
 
   parseCarCard(card) {
-    const title = this.extractText(card, '[data-testid="item-title"]') || 
-                  this.extractText(card, 'span[class*="heading"]');
+    const titleEl = card.querySelector('[data-testid="item-title"]') || card.querySelector('span[class*="heading"]');
+    const title = titleEl ? titleEl.innerText.trim() : '';
+    
+    // Trim/Version is usually the next significant text after title
+    // or specifically in data-testid="item-subtitle"
+    let trim = this.extractText(card, '[data-testid="item-subtitle"]') || 
+               this.extractText(card, '.subtitle') || 
+               this.extractText(card, '[class*="subtitle"]');
+
     const priceText = this.extractText(card, '[data-testid="item-price"]') || 
                       this.extractText(card, 'span[class*="price"]');
     
     const spans = Array.from(card.querySelectorAll('span, div'))
       .map(el => el.innerText.trim())
-      .filter(t => t.length > 0 && t.length < 60);
+      .filter(t => t.length > 0 && t.length < 80);
+
+    // If trim wasn't found by selector, try to find it as the line that often follows title
+    if (!trim && title) {
+      const titleIndex = spans.indexOf(title);
+      if (titleIndex !== -1 && spans[titleIndex + 1]) {
+        const candidate = spans[titleIndex + 1];
+        // Ensure it's not a year or price or mileage
+        if (!/^\d{4}$/.test(candidate) && !candidate.includes('₪') && !candidate.includes('ק"м')) {
+          trim = candidate;
+        }
+      }
+    }
 
     let year = '';
     const yearMatch = spans.find(t => /(?:שנה|year)?\s*(20\d{2}|19\d{2})/i.test(t));
@@ -76,9 +94,6 @@ const Yad2Parser = {
       if (match) year = match[1];
     }
     
-    // IMPROVED Hand search. 
-    // Look for spans that contain ONLY the word 'יד' and a number nearby,
-    // or the pattern 'יד X'.
     let hand = '';
     const handPattern = /יד\s*(\d+)/;
     for (const text of spans) {
@@ -89,9 +104,8 @@ const Yad2Parser = {
       }
     }
 
-    // Fallback: if we found a very small number in a standalone span and it's not the year
     if (!hand) {
-      const smallNum = spans.find(t => /^\d{1,2}$/.test(t) && t !== year);
+      const smallNum = spans.find(t => /^\d{1,2}$/.test(t) && t !== year && t.length < 3);
       if (smallNum) hand = smallNum;
     }
 
@@ -109,8 +123,9 @@ const Yad2Parser = {
     return {
       id: link || `${title}_${priceText}_${year}`,
       title: title || (spans.length > 0 ? spans[0] : 'Unknown Car'),
+      trim: trim || '',
       price: this.parsePrice(priceText),
-      city: this.extractText(card, '[data-testid="item-subtitle"]') || '',
+      city: '', // Will be filled from badges or JSON
       mileage,
       year,
       hand,
@@ -136,7 +151,7 @@ const Yad2Parser = {
 
   detectAccident(text) {
     if (!text) return false;
-    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'יриדת ערך'];
+    const keywords = ['תאונה', 'פгиעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
     return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
   }
 };

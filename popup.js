@@ -1,3 +1,55 @@
+function createCarCard(car) {
+  const div = document.createElement('div');
+  div.className = 'car-card';
+  if (car.accident) div.classList.add('accident');
+
+  div.innerHTML = `
+    <div class="car-header">
+      <div class="car-title">${car.title}</div>
+      <div class="car-trim">${car.trim || ''}</div>
+    </div>
+    <div class="car-details">
+      <div class="detail">
+        <div class="detail-label">Price</div>
+        <div class="detail-value highlight">${parseInt(car.price).toLocaleString() || 'N/A'} ₪</div>
+      </div>
+      <div class="detail">
+        <div class="detail-label">Year</div>
+        <div class="detail-value">${car.year || '-'}</div>
+      </div>
+      <div class="detail">
+        <div class="detail-label">KM</div>
+        <div class="detail-value">${car.mileage ? parseInt(car.mileage).toLocaleString() : '-'}</div>
+      </div>
+      <div class="detail">
+        <div class="detail-label">Hand</div>
+        <div class="detail-value">${car.hand || '-'}</div>
+      </div>
+    </div>
+    <div class="badges">
+      ${car.accident ? '<span class="badge badge-danger">⚠️ Accident/Damage</span>' : ''}
+      ${car.engine ? `<span class="badge">⚙️ ${car.engine}</span>` : ''}
+      ${car.gearbox ? `<span class="badge">🕹️ ${car.gearbox}</span>` : ''}
+      ${car.city ? `<span class="badge">📍 ${car.city}</span>` : ''}
+    </div>
+    <textarea placeholder="Notes...">${car.notes || ''}</textarea>
+    <a href="${car.link}" target="_blank" class="car-link">View on Yad2 →</a>
+  `;
+
+  const textarea = div.querySelector('textarea');
+  textarea.addEventListener('change', async () => {
+    const cars = await loadCars();
+    const index = cars.findIndex(c => c.id === car.id);
+    if (index !== -1) {
+      cars[index].notes = textarea.value;
+      await saveCars(cars);
+    }
+  });
+
+  return div;
+}
+
+// Ensure rest of popup.js remains same (excluding the above updated function)
 async function renderCars() {
   const carsContainer = document.getElementById('cars');
   const carsCountEl = document.getElementById('carsCount');
@@ -20,68 +72,17 @@ async function renderCars() {
   });
 }
 
-function createCarCard(car) {
-  const div = document.createElement('div');
-  div.className = 'car-card';
-  if (car.accident) div.classList.add('accident');
-
-  div.innerHTML = `
-    <div class="car-title">${car.title}</div>
-    <div class="car-details">
-      <div class="detail">
-        <div class="detail-label">Price</div>
-        <div class="detail-value">${parseInt(car.price).toLocaleString() || 'N/A'} ₪</div>
-      </div>
-      <div class="detail">
-        <div class="detail-label">Year</div>
-        <div class="detail-value">${car.year || '-'}</div>
-      </div>
-      <div class="detail">
-        <div class="detail-label">KM</div>
-        <div class="detail-value">${car.mileage ? parseInt(car.mileage).toLocaleString() : '-'}</div>
-      </div>
-      <div class="detail">
-        <div class="detail-label">Hand</div>
-        <div class="detail-value">${car.hand || '-'}</div>
-      </div>
-      ${car.engine ? `
-      <div class="detail">
-        <div class="detail-label">Engine</div>
-        <div class="detail-value">${car.engine}</div>
-      </div>` : ''}
-    </div>
-    <div class="badges">
-      ${car.accident ? '<span class="badge badge-danger">⚠️ Accident/Damage</span>' : ''}
-      ${car.gearbox ? `<span class="badge">${car.gearbox}</span>` : ''}
-      <span class="badge">${car.city || 'No city'}</span>
-    </div>
-    <textarea placeholder="Notes...">${car.notes || ''}</textarea>
-    <a href="${car.link}" target="_blank" class="car-link">View on Yad2 →</a>
-  `;
-
-  const textarea = div.querySelector('textarea');
-  textarea.addEventListener('change', async () => {
-    const cars = await loadCars();
-    const index = cars.findIndex(c => c.id === car.id);
-    if (index !== -1) {
-      cars[index].notes = textarea.value;
-      await saveCars(cars);
-    }
-  });
-
-  return div;
-}
-
 function exportCSV(cars) {
   const rows = [
-    ['Title', 'Price', 'City', 'Mileage', 'Year', 'Hand', 'Engine', 'Accident', 'Notes', 'Link']
+    ['Title', 'Trim', 'Price', 'City', 'Mileage', 'Year', 'Hand', 'Engine', 'Accident', 'Notes', 'Link']
   ];
 
   cars.forEach(car => {
     rows.push([
       `"${car.title}"`,
+      `"${car.trim || ''}"`,
       car.price,
-      `"${car.city}"`,
+      `"${car.city || ''}"`,
       car.mileage,
       car.year,
       car.hand,
