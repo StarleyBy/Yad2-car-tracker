@@ -26,9 +26,15 @@ const Yad2Parser = {
       if (item.type === 'ad' || !item.id) return null;
 
       // Clean Make and Model
-      const make = item.title || item.title_1 || 'Unknown';
-      // Version/Trim is often in title_2 or version
-      const trim = item.title_2 || item.version || item.sub_title || '';
+      const make = item.title_1 || item.title || 'Unknown';
+      // Version/Trim: search for non-duplicate info
+      let trim = item.title_2 || item.version || item.sub_title || '';
+      
+      // If trim is same as title, clear it to avoid duplication
+      if (trim === make || trim === item.title) {
+        trim = item.version || item.sub_title || '';
+        if (trim === make) trim = '';
+      }
 
       let hand = '';
       if (item.hand !== undefined && item.hand !== null) {
@@ -62,27 +68,34 @@ const Yad2Parser = {
     const titleEl = card.querySelector('[data-testid="item-title"]') || card.querySelector('span[class*="heading"]');
     const title = titleEl ? titleEl.innerText.trim() : '';
     
-    // Trim/Version is usually the next significant text after title
-    // or specifically in data-testid="item-subtitle"
-    let trim = this.extractText(card, '[data-testid="item-subtitle"]') || 
-               this.extractText(card, '.subtitle') || 
-               this.extractText(card, '[class*="subtitle"]');
-
-    const priceText = this.extractText(card, '[data-testid="item-price"]') || 
-                      this.extractText(card, 'span[class*="price"]');
+    // Improved DOM trim selection: specifically look for a DIFFERENT element
+    let trim = '';
+    const subtitleEl = card.querySelector('[data-testid="item-subtitle"]') || 
+                       card.querySelector('.subtitle') || 
+                       card.querySelector('[class*="subtitle"]');
     
+    if (subtitleEl && subtitleEl.innerText.trim() !== title) {
+      trim = subtitleEl.innerText.trim();
+    }
+
     const spans = Array.from(card.querySelectorAll('span, div'))
       .map(el => el.innerText.trim())
       .filter(t => t.length > 0 && t.length < 80);
 
-    // If trim wasn't found by selector, try to find it as the line that often follows title
+    // If still no trim, try to find the line that follows the title but is NOT the title
     if (!trim && title) {
       const titleIndex = spans.indexOf(title);
-      if (titleIndex !== -1 && spans[titleIndex + 1]) {
-        const candidate = spans[titleIndex + 1];
-        // Ensure it's not a year or price or mileage
-        if (!/^\d{4}$/.test(candidate) && !candidate.includes('₪') && !candidate.includes('ק"м')) {
+      // Look at the next few spans to find the description
+      for (let i = titleIndex + 1; i < titleIndex + 4 && i < spans.length; i++) {
+        const candidate = spans[i];
+        if (candidate && 
+            candidate !== title && 
+            !/^\d{4}$/.test(candidate) && 
+            !candidate.includes('₪') && 
+            !candidate.includes('ק"מ') &&
+            candidate.length > 5) {
           trim = candidate;
+          break;
         }
       }
     }
@@ -95,18 +108,13 @@ const Yad2Parser = {
     }
     
     let hand = '';
-    const handPattern = /יד\s*(\d+)/;
+    const handPattern = /יд?\s*(\d+)/i;
     for (const text of spans) {
       const match = text.match(handPattern);
       if (match) {
         hand = match[1];
         break;
       }
-    }
-
-    if (!hand) {
-      const smallNum = spans.find(t => /^\d{1,2}$/.test(t) && t !== year && t.length < 3);
-      if (smallNum) hand = smallNum;
     }
 
     let mileage = '';
@@ -124,8 +132,8 @@ const Yad2Parser = {
       id: link || `${title}_${priceText}_${year}`,
       title: title || (spans.length > 0 ? spans[0] : 'Unknown Car'),
       trim: trim || '',
-      price: this.parsePrice(priceText),
-      city: '', // Will be filled from badges or JSON
+      price: this.parsePrice(this.extractText(card, '[data-testid="item-price"]') || ''),
+      city: '', 
       mileage,
       year,
       hand,
@@ -151,7 +159,7 @@ const Yad2Parser = {
 
   detectAccident(text) {
     if (!text) return false;
-    const keywords = ['תאונה', 'פгиעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
+    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
     return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
   }
 };
