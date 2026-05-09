@@ -1,47 +1,56 @@
 (async function() {
-  console.log('Yad2 Tracker: Advanced Scraper started');
-
-  async function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
+  console.log('Yad2 Tracker: Data-First Scraper started');
 
   async function collectCars() {
-    console.log('Yad2 Tracker: Collecting cards...');
-    
-    // Modern Yad2 uses "feed-item-wrapper" or "feed_item"
-    let cards = Array.from(document.querySelectorAll('[data-testid*="feed-item"], .feed_item, .feed-item, [class*="FeedItem"]'));
-    
-    if (cards.length === 0) {
-      // Very broad fallback
-      cards = Array.from(document.querySelectorAll('div[class*="item"]'))
-        .filter(el => el.innerText && el.innerText.includes('₪') && el.offsetHeight > 50);
+    let cars = [];
+
+    // 1. Try to find the JSON data manifest (__NEXT_DATA__)
+    const nextDataScript = document.getElementById('__NEXT_DATA__');
+    if (nextDataScript) {
+      try {
+        const jsonData = JSON.parse(nextDataScript.textContent);
+        console.log('Yad2 Tracker: Found __NEXT_DATA__');
+        const extracted = Yad2Parser.getNestedData(jsonData);
+        if (extracted && extracted.length > 0) {
+          cars = extracted;
+          console.log(`Yad2 Tracker: Extracted ${cars.length} cars from JSON`);
+        }
+      } catch (e) {
+        console.error('Yad2 Tracker: Failed to parse __NEXT_DATA__', e);
+      }
     }
 
-    console.log(`Yad2 Tracker: Found ${cards.length} potential cards`);
+    // 2. Fallback to DOM if JSON fails or returns nothing
+    if (cars.length === 0) {
+      console.log('Yad2 Tracker: Falling back to DOM scraping...');
+      const cards = Array.from(document.querySelectorAll('[data-testid*="feed-item"], .feed_item, .feed-item, [class*="FeedItem"]'))
+        .filter(el => el.offsetHeight > 50);
 
+      cars = cards.map(card => Yad2Parser.parseCarCard(card))
+        .filter(car => car.price && car.price !== '0');
+    }
+
+    if (cars.length === 0) {
+      console.warn('Yad2 Tracker: No cars found');
+      return;
+    }
+
+    // 3. Merge with existing data
     const existingCars = await loadCars();
     const carMap = new Map(existingCars.map(c => [c.id, c]));
 
-    cards.forEach(card => {
-      try {
-        const car = Yad2Parser.parseCarCard(card);
-        // Requirement: Must have at least a price or a title that isn't 'Unknown'
-        if ((car.price && car.price !== '0') || (car.title && car.title !== 'Unknown Car')) {
-          if (carMap.has(car.id)) {
-            const existing = carMap.get(car.id);
-            carMap.set(car.id, { ...car, notes: existing.notes });
-          } else {
-            carMap.set(car.id, car);
-          }
-        }
-      } catch (e) {
-        console.error('Yad2 Tracker: Parse error', e);
+    cars.forEach(car => {
+      if (carMap.has(car.id)) {
+        const existing = carMap.get(car.id);
+        carMap.set(car.id, { ...car, notes: existing.notes });
+      } else {
+        carMap.set(car.id, car);
       }
     });
 
     const finalCars = Array.from(carMap.values());
     await saveCars(finalCars);
-    console.log(`Yad2 Tracker: Saved ${finalCars.length} cars total`);
+    console.log(`Yad2 Tracker: Successfully saved ${finalCars.length} cars total`);
   }
 
   await collectCars();

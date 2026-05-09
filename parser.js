@@ -1,71 +1,71 @@
 const Yad2Parser = {
-  extractText(element, selector) {
+  // Attempt to extract structured data from Next.js data blob
+  getNestedData(obj) {
     try {
-      const el = element.querySelector(selector);
-      return el ? el.innerText.trim() : '';
+      // Common paths in Next.js/Yad2 data structures
+      // This is a heuristic and might need adjustment
+      const searchResult = obj?.props?.pageProps?.initialState?.feed?.feed_items || 
+                           obj?.props?.pageProps?.initialData?.feed?.feed_items ||
+                           obj?.props?.pageProps?.feedData?.items;
+      
+      if (searchResult && Array.isArray(searchResult)) {
+        return searchResult.map(item => this.parseJsonItem(item)).filter(Boolean);
+      }
     } catch (e) {
-      return '';
+      console.error('Yad2 Tracker: Error extracting from JSON', e);
+    }
+    return null;
+  },
+
+  parseJsonItem(item) {
+    try {
+      // Yad2 JSON items often have fields like: 
+      // title, price, year, mileage, city, link_url, etc.
+      // We map them to our standard car object
+      
+      // Filter out ads
+      if (item.type === 'ad' || !item.id) return null;
+
+      return {
+        id: item.id.toString(),
+        title: item.title || item.title_1 || 'Unknown',
+        price: (item.price || '').toString().replace(/[^0-9]/g, ''),
+        city: item.city || item.area || '',
+        mileage: (item.kilometers || item.mileage || '').toString().replace(/[^0-9]/g, ''),
+        year: (item.year || '').toString(),
+        link: item.link || `https://www.yad2.co.il/item/${item.id}`,
+        accident: false, // Usually not in the feed JSON, would need detail page
+        notes: '',
+        updatedAt: new Date().toISOString()
+      };
+    } catch (e) {
+      return null;
     }
   },
 
-  parsePrice(text) {
-    if (!text) return '';
-    // Handle cases like "50,000 ₪" or "₪ 50,000"
-    return text.replace(/[^0-9]/g, '');
-  },
-
-  detectAccident(text) {
-    if (!text) return false;
-    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
-    const lower = text.toLowerCase();
-    return keywords.some(word => lower.includes(word.toLowerCase()));
-  },
-
+  // Fallback DOM parser (the improved one from previous step)
   parseCarCard(card) {
-    // Yad2 search results use specific data-testids or classes
-    // Title is usually in [data-testid="item-title"]
     let title = this.extractText(card, '[data-testid="item-title"]') || 
-                this.extractText(card, '.title') || 
                 this.extractText(card, 'span[class*="heading"]');
-
-    // Price is usually in [data-testid="item-price"]
     let priceText = this.extractText(card, '[data-testid="item-price"]') || 
-                    this.extractText(card, '.price') || 
                     this.extractText(card, 'span[class*="price"]');
+    let city = this.extractText(card, '[data-testid="item-subtitle"]') || '';
 
-    // City / Subtitle
-    let city = this.extractText(card, '[data-testid="item-subtitle"]') || 
-               this.extractText(card, '.subtitle') || 
-               '';
-
-    // Year and Mileage are often in "badges" or specific spans
-    // They look like: <span>2022</span> or <span>15,000 км</span>
     const details = Array.from(card.querySelectorAll('span, div'))
       .map(el => el.innerText.trim())
       .filter(t => t.length > 0 && t.length < 30);
 
     let year = details.find(t => /^(19|20)\d{2}$/.test(t)) || '';
-    
     let mileage = '';
     const mileageMatch = details.find(t => t.includes('ק"м') || t.toLowerCase().includes('km'));
-    if (mileageMatch) {
-      mileage = mileageMatch.replace(/[^0-9]/g, '');
-    }
+    if (mileageMatch) mileage = mileageMatch.replace(/[^0-9]/g, '');
 
-    // Link extraction
     const linkEl = card.querySelector('a[href*="/item/"]') || card.querySelector('a');
     const link = linkEl ? (linkEl.href.startsWith('http') ? linkEl.href : 'https://www.yad2.co.il' + linkEl.getAttribute('href')) : '';
     
-    // If we still don't have a title, let's try to reconstruct it from elements
-    if (!title && details.length > 0) {
-      title = details[0]; // Often the first element is the model
-    }
-
     const fullText = card.innerText || '';
-    const id = link || `${title}_${priceText}_${year}`;
-
     return {
-      id,
+      id: link || `${title}_${priceText}_${year}`,
       title: title || 'Unknown Car',
       price: this.parsePrice(priceText),
       city,
@@ -76,5 +76,22 @@ const Yad2Parser = {
       notes: '',
       updatedAt: new Date().toISOString()
     };
+  },
+
+  extractText(element, selector) {
+    try {
+      const el = element.querySelector(selector);
+      return el ? el.innerText.trim() : '';
+    } catch (e) { return ''; }
+  },
+
+  parsePrice(text) {
+    return text ? text.replace(/[^0-9]/g, '') : '';
+  },
+
+  detectAccident(text) {
+    if (!text) return false;
+    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה'];
+    return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
   }
 };
