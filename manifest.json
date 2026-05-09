@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Yad2 Car Tracker",
+  "version": "1.0",
+  "description": "Track favorite cars from Yad2",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+
+  "host_permissions": [
+    "https://www.yad2.co.il/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.yad2.co.il/*"
+      ],
+
+      "js": [
+        
+        "content.js"
+      ],
+
+      "run_at": "document_idle"
+    }
+  ]
+}

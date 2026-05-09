@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Yad2 Premium Tracker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<div class="app">
+
+  <div class="header">
+    <div>
+      <h1>🚘 Yad2 Tracker</h1>
+      <p>Smart car monitoring</p>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button id="refreshBtn">Refresh</button>
+    <button id="syncBtn">Sheets</button>
+    <button id="exportBtn">CSV</button>
+  </div>
+
+  <div class="stats">
+
+    <div class="stat-card">
+      <div class="stat-title">Cars</div>
+      <div class="stat-value" id="carsCount">0</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-title">Avg Price</div>
+      <div class="stat-value" id="avgPrice">-</div>
+    </div>
+
+  </div>
+
+  <div id="cars" class="cars-grid"></div>
+
+</div>
+
+<script src="sync.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

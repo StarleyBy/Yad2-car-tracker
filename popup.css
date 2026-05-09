@@ -1,0 +1,66 @@
+* {
+  font-weight: bold;
+  color: #60a5fa;
+}
+
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.badge {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(255,255,255,0.08);
+}
+
+.badge-danger {
+  background: rgba(239,68,68,0.2);
+  color: #fca5a5;
+}
+
+.car-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.detail {
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.detail-label {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.detail-value {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+textarea {
+  width: 100%;
+  min-height: 70px;
+  margin-top: 10px;
+  border-radius: 14px;
+  border: none;
+  padding: 12px;
+  resize: vertical;
+  background: rgba(255,255,255,0.08);
+  color: white;
+}
+
+.car-link {
+  display: inline-block;
+  margin-top: 10px;
+  text-decoration: none;
+  color: #93c5fd;
+}
