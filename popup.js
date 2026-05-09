@@ -38,15 +38,22 @@ function createCarCard(car) {
       </div>
       <div class="detail">
         <div class="detail-label">KM</div>
-        <div class="detail-value">${parseInt(car.mileage).toLocaleString() || '-'}</div>
+        <div class="detail-value">${car.mileage ? parseInt(car.mileage).toLocaleString() : '-'}</div>
       </div>
       <div class="detail">
-        <div class="detail-label">City</div>
-        <div class="detail-value">${car.city || '-'}</div>
+        <div class="detail-label">Hand</div>
+        <div class="detail-value">${car.hand || '-'}</div>
       </div>
+      ${car.engine ? `
+      <div class="detail">
+        <div class="detail-label">Engine</div>
+        <div class="detail-value">${car.engine}</div>
+      </div>` : ''}
     </div>
     <div class="badges">
       ${car.accident ? '<span class="badge badge-danger">⚠️ Accident/Damage</span>' : ''}
+      ${car.gearbox ? `<span class="badge">${car.gearbox}</span>` : ''}
+      <span class="badge">${car.city || 'No city'}</span>
     </div>
     <textarea placeholder="Notes...">${car.notes || ''}</textarea>
     <a href="${car.link}" target="_blank" class="car-link">View on Yad2 →</a>
@@ -67,7 +74,7 @@ function createCarCard(car) {
 
 function exportCSV(cars) {
   const rows = [
-    ['Title', 'Price', 'City', 'Mileage', 'Year', 'Accident', 'Notes', 'Link']
+    ['Title', 'Price', 'City', 'Mileage', 'Year', 'Hand', 'Engine', 'Accident', 'Notes', 'Link']
   ];
 
   cars.forEach(car => {
@@ -77,6 +84,8 @@ function exportCSV(cars) {
       `"${car.city}"`,
       car.mileage,
       car.year,
+      car.hand,
+      car.engine,
       car.accident,
       `"${car.notes || ''}"`,
       car.link
@@ -102,24 +111,20 @@ async function refreshCurrentTab() {
     files: ['storage.js', 'parser.js', 'content.js']
   });
 
-  // Wait a bit for scraping to finish and storage to update
   setTimeout(renderCars, 3000);
 }
 
 document.getElementById('refreshBtn').addEventListener('click', refreshCurrentTab);
-
 document.getElementById('exportBtn').addEventListener('click', async () => {
   const cars = await loadCars();
   exportCSV(cars);
 });
-
 document.getElementById('clearBtn').addEventListener('click', async () => {
   if (confirm('Are you sure you want to clear all tracked cars?')) {
     await saveCars([]);
     renderCars();
   }
 });
-
 document.getElementById('syncBtn').addEventListener('click', async () => {
   const cars = await loadCars();
   try {

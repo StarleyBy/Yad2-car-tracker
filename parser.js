@@ -1,13 +1,10 @@
 const Yad2Parser = {
-  // Deep search for feed items in the Next.js data object
   getNestedData(obj) {
     try {
-      // 1. Try common paths
       const paths = [
         obj?.props?.pageProps?.initialState?.feed?.feed_items,
         obj?.props?.pageProps?.initialData?.feed?.feed_items,
         obj?.props?.pageProps?.feedData?.items,
-        // React Query / Dehydrated State (Common in modern Next.js)
         ...(obj?.props?.pageProps?.dehydratedState?.queries || [])
           .map(q => q?.state?.data?.data?.feed?.feed_items || q?.state?.data?.feed?.feed_items)
           .filter(Boolean)
@@ -19,17 +16,15 @@ const Yad2Parser = {
         }
       }
     } catch (e) {
-      console.error('Yad2 Tracker: Error extracting from JSON', e);
+      console.error('Yad2 Tracker: JSON Extraction Error', e);
     }
     return null;
   },
 
   parseJsonItem(item) {
     try {
-      // Yad2 JSON items mapping
       if (item.type === 'ad' || !item.id) return null;
 
-      // Title often comes as title_1 (Make) and title_2 (Model)
       const title = item.title || 
                     (item.title_1 && item.title_2 ? `${item.title_1} ${item.title_2}` : item.title_1) || 
                     'Unknown';
@@ -40,7 +35,10 @@ const Yad2Parser = {
         price: (item.price || '').toString().replace(/[^0-9]/g, ''),
         city: item.city || item.area || '',
         mileage: (item.kilometers || item.mileage || '').toString().replace(/[^0-9]/g, ''),
-        year: (item.year || '').toString(),
+        year: (item.year || item.year_id || '').toString(),
+        hand: (item.hand || item.hand_id || '').toString(),
+        engine: item.engine_size || item.engine_volume || '',
+        gearbox: item.gearbox || '',
         link: item.link || `https://www.yad2.co.il/item/${item.id}`,
         accident: false,
         notes: '',
@@ -52,20 +50,32 @@ const Yad2Parser = {
   },
 
   parseCarCard(card) {
-    let title = this.extractText(card, '[data-testid="item-title"]') || 
-                this.extractText(card, 'span[class*="heading"]');
-    let priceText = this.extractText(card, '[data-testid="item-price"]') || 
-                    this.extractText(card, 'span[class*="price"]');
+    const title = this.extractText(card, '[data-testid="item-title"]') || 
+                  this.extractText(card, 'span[class*="heading"]');
+    const priceText = this.extractText(card, '[data-testid="item-price"]') || 
+                      this.extractText(card, 'span[class*="price"]');
     
-    // Improved details extraction
     const spans = Array.from(card.querySelectorAll('span, div'))
       .map(el => el.innerText.trim())
-      .filter(t => t.length > 0 && t.length < 50);
+      .filter(t => t.length > 0 && t.length < 60);
 
-    let year = spans.find(t => /^(19|20)\d{2}$/.test(t)) || '';
+    // More flexible year search (handles "Year 2021" or just "2021")
+    let year = '';
+    const yearMatch = spans.find(t => /(?:שנה|year)?\s*(20\d{2}|19\d{2})/i.test(t));
+    if (yearMatch) {
+      const match = yearMatch.match(/(20\d{2}|19\d{2})/);
+      if (match) year = match[1];
+    }
     
+    // Hand search (יד)
+    let hand = '';
+    const handMatch = spans.find(t => /(?:יד|hand)\s*(\d+)/i.test(t));
+    if (handMatch) {
+      const match = handMatch.match(/(\d+)/);
+      if (match) hand = match[1];
+    }
+
     let mileage = '';
-    // FIX: Using correct Hebrew characters for ק"מ (Mem instead of Cyrillic M)
     const mileageMatch = spans.find(t => t.includes('ק"מ') || /[\d,]+\s*km/i.test(t));
     if (mileageMatch) mileage = mileageMatch.replace(/[^0-9]/g, '');
 
@@ -76,7 +86,6 @@ const Yad2Parser = {
       link = href.startsWith('http') ? href : 'https://www.yad2.co.il' + (href.startsWith('/') ? '' : '/') + href;
     }
     
-    const fullText = card.innerText || '';
     return {
       id: link || `${title}_${priceText}_${year}`,
       title: title || (spans.length > 0 ? spans[0] : 'Unknown Car'),
@@ -84,8 +93,11 @@ const Yad2Parser = {
       city: this.extractText(card, '[data-testid="item-subtitle"]') || '',
       mileage,
       year,
+      hand,
+      engine: '', // Hard to get from feed DOM accurately
+      gearbox: '',
       link,
-      accident: this.detectAccident(fullText),
+      accident: this.detectAccident(card.innerText || ''),
       notes: '',
       updatedAt: new Date().toISOString()
     };
@@ -104,9 +116,7 @@ const Yad2Parser = {
 
   detectAccident(text) {
     if (!text) return false;
-    const keywords = ['תаונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
-    // Note: ensure keywords are also using correct Hebrew characters
-    const fixedKeywords = keywords.map(k => k.replace('а', 'א')); // sanitize any potential copy-paste traps
-    return fixedKeywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
+    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'יриדת ערך'];
+    return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
   }
 };
