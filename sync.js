@@ -1,3 +1,5 @@
+const API_URL = 'https://script.google.com/macros/s/AKfycbyLkbqre8lA9vrdBTeXuyiulwvPKwoO9GmldTE2NU5Yic-xoHyW1KTIN5Rvx1mfWmyr/exec';
+
 async function syncCarsToSheets(cars) {
   try {
     const sortedCars = [...cars].sort((a, b) => (parseInt(a.price) || 0) - (parseInt(b.price) || 0));

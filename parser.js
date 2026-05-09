@@ -29,9 +29,15 @@ const Yad2Parser = {
                     (item.title_1 && item.title_2 ? `${item.title_1} ${item.title_2}` : item.title_1) || 
                     'Unknown';
 
-      // Cleanly extract Hand from JSON. Yad2 often uses 'hand' or 'hand_number'
-      let hand = (item.hand !== undefined ? item.hand : item.hand_number);
-      if (hand === undefined || hand === null) hand = '';
+      // Cleanly extract Hand from JSON. 
+      // In Yad2 feed items, it's often in 'hand' or 'hand_number'
+      // Or it might be in the 'feed_item_info' array
+      let hand = '';
+      if (item.hand !== undefined && item.hand !== null) {
+        hand = item.hand;
+      } else if (item.hand_number !== undefined && item.hand_number !== null) {
+        hand = item.hand_number;
+      }
 
       return {
         id: item.id.toString(),
@@ -70,16 +76,23 @@ const Yad2Parser = {
       if (match) year = match[1];
     }
     
-    // STRICT Hand search (יד). 
-    // We look for the word "יד" followed by a small number (usually 1-10).
-    // This avoids matching fragments of the price.
+    // IMPROVED Hand search. 
+    // Look for spans that contain ONLY the word 'יד' and a number nearby,
+    // or the pattern 'יד X'.
     let hand = '';
-    const handMatch = spans.find(t => /^יד\s*\d+$/i.test(t) || /\bיד\s*(\d+)\b/i.test(t));
-    if (handMatch) {
-      const match = handMatch.match(/יд?\s*(\d+)/i) || handMatch.match(/(\d+)/);
-      if (match && parseInt(match[1]) < 20) { // Safety check: Hands are rarely > 20
+    const handPattern = /יד\s*(\d+)/;
+    for (const text of spans) {
+      const match = text.match(handPattern);
+      if (match) {
         hand = match[1];
+        break;
       }
+    }
+
+    // Fallback: if we found a very small number in a standalone span and it's not the year
+    if (!hand) {
+      const smallNum = spans.find(t => /^\d{1,2}$/.test(t) && t !== year);
+      if (smallNum) hand = smallNum;
     }
 
     let mileage = '';
@@ -123,7 +136,7 @@ const Yad2Parser = {
 
   detectAccident(text) {
     if (!text) return false;
-    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
+    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'יриדת ערך'];
     return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
   }
 };
