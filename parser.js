@@ -29,6 +29,10 @@ const Yad2Parser = {
                     (item.title_1 && item.title_2 ? `${item.title_1} ${item.title_2}` : item.title_1) || 
                     'Unknown';
 
+      // Cleanly extract Hand from JSON. Yad2 often uses 'hand' or 'hand_number'
+      let hand = (item.hand !== undefined ? item.hand : item.hand_number);
+      if (hand === undefined || hand === null) hand = '';
+
       return {
         id: item.id.toString(),
         title: title,
@@ -36,7 +40,7 @@ const Yad2Parser = {
         city: item.city || item.area || '',
         mileage: (item.kilometers || item.mileage || '').toString().replace(/[^0-9]/g, ''),
         year: (item.year || item.year_id || '').toString(),
-        hand: (item.hand || item.hand_id || '').toString(),
+        hand: hand.toString(),
         engine: item.engine_size || item.engine_volume || '',
         gearbox: item.gearbox || '',
         link: item.link || `https://www.yad2.co.il/item/${item.id}`,
@@ -59,7 +63,6 @@ const Yad2Parser = {
       .map(el => el.innerText.trim())
       .filter(t => t.length > 0 && t.length < 60);
 
-    // More flexible year search (handles "Year 2021" or just "2021")
     let year = '';
     const yearMatch = spans.find(t => /(?:שנה|year)?\s*(20\d{2}|19\d{2})/i.test(t));
     if (yearMatch) {
@@ -67,12 +70,16 @@ const Yad2Parser = {
       if (match) year = match[1];
     }
     
-    // Hand search (יד)
+    // STRICT Hand search (יד). 
+    // We look for the word "יד" followed by a small number (usually 1-10).
+    // This avoids matching fragments of the price.
     let hand = '';
-    const handMatch = spans.find(t => /(?:יד|hand)\s*(\d+)/i.test(t));
+    const handMatch = spans.find(t => /^יד\s*\d+$/i.test(t) || /\bיד\s*(\d+)\b/i.test(t));
     if (handMatch) {
-      const match = handMatch.match(/(\d+)/);
-      if (match) hand = match[1];
+      const match = handMatch.match(/יд?\s*(\d+)/i) || handMatch.match(/(\d+)/);
+      if (match && parseInt(match[1]) < 20) { // Safety check: Hands are rarely > 20
+        hand = match[1];
+      }
     }
 
     let mileage = '';
@@ -94,7 +101,7 @@ const Yad2Parser = {
       mileage,
       year,
       hand,
-      engine: '', // Hard to get from feed DOM accurately
+      engine: '', 
       gearbox: '',
       link,
       accident: this.detectAccident(card.innerText || ''),
@@ -116,7 +123,7 @@ const Yad2Parser = {
 
   detectAccident(text) {
     if (!text) return false;
-    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'יриדת ערך'];
+    const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
     return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
   }
 };
