@@ -99,7 +99,7 @@ async function refreshCurrentTab() {
 
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files: ['content.js']
+    files: ['storage.js', 'parser.js', 'content.js']
   });
 
   // Wait a bit for scraping to finish and storage to update
