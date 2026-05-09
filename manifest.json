@@ -30,7 +30,8 @@
       ],
 
       "js": [
-        
+        "storage.js",
+        "parser.js",
         "content.js"
       ],
 
