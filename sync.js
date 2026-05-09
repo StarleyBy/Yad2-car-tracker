@@ -2,17 +2,34 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyLkbqre8lA9vrdBTeXuyiu
 
 async function syncCarsToSheets(cars) {
   try {
+    // Sort cars by price or date to maintain some order in the sheet
+    const sortedCars = [...cars].sort((a, b) => (parseInt(a.price) || 0) - (parseInt(b.price) || 0));
+
+    // Map to a clean structure to ensure consistency
+    const payload = sortedCars.map(car => ({
+      id: car.id,
+      title: car.title,
+      price: car.price,
+      year: car.year,
+      mileage: car.mileage,
+      city: car.city,
+      accident: car.accident ? 'YES' : 'NO',
+      notes: car.notes || '',
+      link: car.link,
+      syncTime: new Date().toISOString()
+    }));
+
     const response = await fetch(API_URL, {
       method: 'POST',
-      mode: 'no-cors', // Use no-cors if you don't need to read the response body, or keep it standard if permissions are set
       headers: {
-        'Content-Type': 'text/plain' // Using text/plain avoids preflight (OPTIONS) request
+        'Content-Type': 'text/plain'
       },
-      body: JSON.stringify({ cars })
+      body: JSON.stringify({ 
+        action: 'sync_all', // Tell the script to replace or update intelligently
+        cars: payload 
+      })
     });
     
-    // Note: with 'no-cors', you can't read the response. 
-    // If you need the response, 'cors' mode is required and the manifest permission should handle it.
     return { success: true }; 
   } catch (error) {
     console.error('Sync error:', error);

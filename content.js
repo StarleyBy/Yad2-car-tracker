@@ -30,19 +30,18 @@
     console.log(`Yad2 Tracker: Found ${cards.length} potential cards`);
 
     const existingCars = await loadCars();
-    const newCars = [...existingCars];
+    const carMap = new Map(existingCars.map(c => [c.id, c]));
 
     cards.forEach(card => {
       try {
         const car = Yad2Parser.parseCarCard(card);
         if (car.title && car.price) {
-          const index = newCars.findIndex(c => c.id === car.id);
-          if (index === -1) {
-            newCars.push(car);
+          if (carMap.has(car.id)) {
+            // Update existing but keep notes
+            const existing = carMap.get(car.id);
+            carMap.set(car.id, { ...car, notes: existing.notes });
           } else {
-            // Update existing entry but keep notes
-            const notes = newCars[index].notes;
-            newCars[index] = { ...car, notes };
+            carMap.set(car.id, car);
           }
         }
       } catch (e) {
@@ -50,8 +49,9 @@
       }
     });
 
-    await saveCars(newCars);
-    console.log(`Yad2 Tracker: Total cars in storage: ${newCars.length}`);
+    const finalCars = Array.from(carMap.values());
+    await saveCars(finalCars);
+    console.log(`Yad2 Tracker: Total unique cars in storage: ${finalCars.length}`);
   }
 
   // Run initial collection
