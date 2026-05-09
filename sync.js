@@ -2,10 +2,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyLkbqre8lA9vrdBTeXuyiu
 
 async function syncCarsToSheets(cars) {
   try {
-    // Sort cars by price or date to maintain some order in the sheet
     const sortedCars = [...cars].sort((a, b) => (parseInt(a.price) || 0) - (parseInt(b.price) || 0));
 
-    // Map to a clean structure to ensure consistency
     const payload = sortedCars.map(car => ({
       id: car.id,
       title: car.title,
@@ -19,17 +17,22 @@ async function syncCarsToSheets(cars) {
       syncTime: new Date().toISOString()
     }));
 
+    // To avoid CORS preflight (OPTIONS request), we must not use 'application/json' 
+    // or custom headers. Using 'text/plain' or 'application/x-www-form-urlencoded' 
+    // makes it a "Simple Request" which bypasses the preflight check.
     const response = await fetch(API_URL, {
       method: 'POST',
+      mode: 'no-cors', // This is crucial for Google Apps Script in extensions
       headers: {
-        'Content-Type': 'text/plain'
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: JSON.stringify({ 
-        action: 'sync_all', // Tell the script to replace or update intelligently
+        action: 'sync_all', 
         cars: payload 
       })
     });
     
+    // In 'no-cors' mode, the response is opaque, but the request still reaches the server.
     return { success: true }; 
   } catch (error) {
     console.error('Sync error:', error);
