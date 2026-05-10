@@ -94,16 +94,30 @@ if (!window.Yad2Parser) {
                  this.extractText(card, '.subtitle') || 
                  this.extractText(card, '[class*="subtitle"]');
 
-      // If trim is just a duplicate or looks like year/hand/price, clear it
-      const isBadTrim = (t) => !t || t === title || t === year || t.includes('יד') || t.includes('₪') || t.includes('км');
+      // Blacklist for UI status messages that are not actual trim levels
+      const blacklist = ['המודעה נשמרה', 'נשמר', 'saved', 'ad saved', 'השוואה', 'compare'];
+
+      // If trim is just a duplicate or looks like year/hand/price/status, clear it
+      const isBadTrim = (t) => {
+        if (!t) return true;
+        const low = t.toLowerCase();
+        return low === title.toLowerCase() || 
+               low === year || 
+               low.includes('יד') || 
+               low.includes('₪') || 
+               low.includes('км') ||
+               low.includes('ק"מ') ||
+               blacklist.some(b => low.includes(blacklist.indexOf(b) !== -1 ? b : b.toLowerCase()));
+      };
       
       if (isBadTrim(trim)) {
         trim = '';
         const titleIndex = spans.indexOf(title);
         if (titleIndex !== -1) {
-          for (let i = titleIndex + 1; i < titleIndex + 6 && i < spans.length; i++) {
+          // Check following spans but strictly avoid the blacklist
+          for (let i = titleIndex + 1; i < titleIndex + 8 && i < spans.length; i++) {
             const c = spans[i];
-            if (c && c.length > 4 && !isBadTrim(c)) {
+            if (c && c.length > 3 && !isBadTrim(c)) {
               trim = c;
               break;
             }
