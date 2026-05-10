@@ -29,10 +29,8 @@ if (!window.Yad2Parser) {
         const make = item.title_1 || item.title || 'Unknown';
         let trim = item.title_2 || item.version || item.sub_title || '';
         
-        if (trim === make || trim === item.title) {
-          trim = item.version || item.sub_title || '';
-          if (trim === make) trim = '';
-        }
+        // Anti-dupe for JSON
+        if (trim === make || trim === item.title) trim = '';
 
         let hand = '';
         if (item.hand !== undefined && item.hand !== null) hand = item.hand;
@@ -65,33 +63,17 @@ if (!window.Yad2Parser) {
                     this.extractText(card, 'div[class*="title"]') ||
                     'Unknown Car';
 
+      // BROAD PRICE SEARCH - Fix for disappearing prices
       const priceText = this.extractText(card, '[data-testid="item-price"]') || 
                         this.extractText(card, 'span[class*="price"]') ||
-                        this.extractText(card, 'div[class*="price"]');
+                        this.extractText(card, 'div[class*="price"]') ||
+                        (card.innerText.match(/[\d,]{2,}\s*₪/) || [''])[0];
       
-      let trim = this.extractText(card, '[data-testid="item-subtitle"]') || 
-                 this.extractText(card, '.subtitle') || 
-                 this.extractText(card, '[class*="subtitle"]');
-
       const spans = Array.from(card.querySelectorAll('span, div'))
         .map(el => el.innerText.trim())
         .filter(t => t.length > 0 && t.length < 100);
 
-      if (trim === title) trim = '';
-      
-      if (!trim && title !== 'Unknown Car') {
-        const titleIndex = spans.indexOf(title);
-        if (titleIndex !== -1) {
-          for (let i = titleIndex + 1; i < titleIndex + 5 && i < spans.length; i++) {
-            const c = spans[i];
-            if (c && c !== title && c.length > 5 && !c.includes('₪') && !/^\d{4}$/.test(c)) {
-              trim = c;
-              break;
-            }
-          }
-        }
-      }
-
+      // EXTRACT YEAR AND HAND FIRST
       let year = '';
       const yearMatch = spans.find(t => /(?:שנה|year)?\s*(20\d{2}|19\d{2})/i.test(t));
       if (yearMatch) {
@@ -105,6 +87,28 @@ if (!window.Yad2Parser) {
       if (handStr) {
         const m = handStr.match(handPattern);
         if (m) hand = m[1];
+      }
+
+      // EXTRACT TRIM (CLEANLY)
+      let trim = this.extractText(card, '[data-testid="item-subtitle"]') || 
+                 this.extractText(card, '.subtitle') || 
+                 this.extractText(card, '[class*="subtitle"]');
+
+      // If trim is just a duplicate or looks like year/hand/price, clear it
+      const isBadTrim = (t) => !t || t === title || t === year || t.includes('יד') || t.includes('₪') || t.includes('км');
+      
+      if (isBadTrim(trim)) {
+        trim = '';
+        const titleIndex = spans.indexOf(title);
+        if (titleIndex !== -1) {
+          for (let i = titleIndex + 1; i < titleIndex + 6 && i < spans.length; i++) {
+            const c = spans[i];
+            if (c && c.length > 4 && !isBadTrim(c)) {
+              trim = c;
+              break;
+            }
+          }
+        }
       }
 
       let mileage = '';
@@ -144,12 +148,14 @@ if (!window.Yad2Parser) {
     },
 
     parsePrice(text) {
-      return text ? text.replace(/[^0-9]/g, '') : '';
+      if (!text) return '';
+      const clean = text.replace(/[^0-9]/g, '');
+      return clean.length > 1 ? clean : '';
     },
 
     detectAccident(text) {
       if (!text) return false;
-      const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'יриדת ערך'];
+      const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
       return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
     }
   };

@@ -12,37 +12,23 @@
         const extracted = Yad2Parser.getNestedData(jsonData);
         if (extracted && extracted.length > 0) {
           cars = extracted;
-          console.log(`Yad2 Tracker: Found ${cars.length} cars in JSON`);
         }
       } catch (e) {
-        console.error('Yad2 Tracker: JSON parse error', e);
+        console.error('Yad2 Tracker: JSON error', e);
       }
     }
 
-    // 2. DOM Fallback
+    // 2. DOM
     if (cars.length === 0) {
-      console.log('Yad2 Tracker: Checking DOM...');
-      // Very broad selection to ensure we don't miss anything
       const cards = Array.from(document.querySelectorAll('[data-testid*="feed-item"], [class*="feedItem"], [class*="FeedItem"], [class*="item_item"], .feed_item'))
         .filter(el => el.offsetHeight > 40);
 
-      console.log(`Yad2 Tracker: Found ${cards.length} potential DOM cards`);
-
-      cars = cards.map(card => {
-        const car = Yad2Parser.parseCarCard(card);
-        if (!car.price || car.price === '0') {
-           // Maybe price is in a child element we didn't see?
-           const innerPrice = card.innerText.match(/[\d,]+\s*₪/);
-           if (innerPrice) car.price = innerPrice[0].replace(/[^0-9]/g, '');
-        }
-        return car;
-      }).filter(car => (car.price && car.price !== '0') || car.title !== 'Unknown Car');
-      
-      console.log(`Yad2 Tracker: Scraped ${cars.length} valid cars from DOM`);
+      cars = cards.map(card => Yad2Parser.parseCarCard(card))
+        .filter(car => car.price && car.price !== '0');
     }
 
     if (cars.length === 0) {
-      console.warn('Yad2 Tracker: Zero cars detected. Check selectors.');
+      console.warn('Yad2 Tracker: No cars found');
       return;
     }
 
@@ -50,6 +36,9 @@
     const carMap = new Map(existingCars.map(c => [c.id, c]));
 
     cars.forEach(car => {
+      // Ensure we don't save broken entries
+      if (!car.title || car.title === 'Unknown Car') return;
+
       if (carMap.has(car.id)) {
         const existing = carMap.get(car.id);
         carMap.set(car.id, { ...car, notes: existing.notes });
@@ -59,7 +48,7 @@
     });
 
     await saveCars(Array.from(carMap.values()));
-    console.log('Yad2 Tracker: Update finished');
+    console.log('Yad2 Tracker: Finished. Found:', cars.length);
   }
 
   await collectCars();
