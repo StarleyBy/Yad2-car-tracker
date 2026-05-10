@@ -63,16 +63,28 @@ if (!window.Yad2Parser) {
       
       const spans = Array.from(card.querySelectorAll('span, div'))
         .map(el => el.innerText.trim())
-        .filter(t => t.length > 0 && t.length < 80);
+        .filter(t => t.length > 0 && t.length < 100);
 
-      let year = spans.find(t => /^(19|20)\d{2}$/.test(t)) || '';
+      // RELIABLE YEAR SEARCH
+      // We look for any 4-digit number that starts with 19 or 20
+      let year = '';
+      for (const text of spans) {
+        const match = text.match(/\b(19\d{2}|20\d{2})\b/);
+        if (match) {
+          year = match[1];
+          break;
+        }
+      }
       
       let hand = '';
       const handMatch = spans.find(t => /יד\s*(\d+)/.test(t));
-      if (handMatch) hand = handMatch.match(/יד\s*(\d+)/)[1];
+      if (handMatch) {
+        const m = handMatch.match(/יד\s*(\d+)/);
+        if (m) hand = m[1];
+      }
 
       let mileage = '';
-      const mileageMatch = spans.find(t => t.includes('ק"м') || t.includes('ק"מ') || /[\d,]+\s*km/i.test(t));
+      const mileageMatch = spans.find(t => t.includes('ק"מ') || /[\d,]+\s*km/i.test(t));
       if (mileageMatch) mileage = mileageMatch.replace(/[^0-9]/g, '');
 
       let trim = '';
