@@ -27,25 +27,26 @@ if (!window.Yad2Parser) {
         if (item.type === 'ad' || !item.id) return null;
 
         const make = item.title_1 || item.title || 'Unknown';
-        let trim = item.title_2 || item.version || item.sub_title || '';
-        
-        // Anti-dupe for JSON
-        if (trim === make || trim === item.title) trim = '';
+        // Yad2 often hides trim in 'title_2' or 'version' or 'sub_title' in the JSON
+        const trim = item.title_2 || item.version || item.sub_title || '';
 
         let hand = '';
         if (item.hand !== undefined && item.hand !== null) hand = item.hand;
         else if (item.hand_number !== undefined && item.hand_number !== null) hand = item.hand_number;
 
+        // Engine size and Horsepower often hidden here
+        const engine = item.engine_size || item.engine_volume || (item.feed_item_info?.find(i => i.label === 'נפח')?.value) || '';
+
         return {
           id: item.id.toString(),
           title: make,
-          trim: trim,
+          trim: (trim === make) ? '' : trim,
           price: (item.price || '').toString().replace(/[^0-9]/g, ''),
           city: item.city || item.area || '',
           mileage: (item.kilometers || item.mileage || '').toString().replace(/[^0-9]/g, ''),
           year: (item.year || item.year_id || '').toString(),
           hand: hand.toString(),
-          engine: item.engine_size || item.engine_volume || '',
+          engine: engine,
           gearbox: item.gearbox || '',
           link: item.link || `https://www.yad2.co.il/item/${item.id}`,
           accident: false,
@@ -63,7 +64,6 @@ if (!window.Yad2Parser) {
                     this.extractText(card, 'div[class*="title"]') ||
                     'Unknown Car';
 
-      // BROAD PRICE SEARCH - Fix for disappearing prices
       const priceText = this.extractText(card, '[data-testid="item-price"]') || 
                         this.extractText(card, 'span[class*="price"]') ||
                         this.extractText(card, 'div[class*="price"]') ||
@@ -73,7 +73,6 @@ if (!window.Yad2Parser) {
         .map(el => el.innerText.trim())
         .filter(t => t.length > 0 && t.length < 100);
 
-      // EXTRACT YEAR AND HAND FIRST
       let year = '';
       const yearMatch = spans.find(t => /(?:שנה|year)?\s*(20\d{2}|19\d{2})/i.test(t));
       if (yearMatch) {
@@ -89,48 +88,13 @@ if (!window.Yad2Parser) {
         if (m) hand = m[1];
       }
 
-      // EXTRACT TRIM (CLEANLY)
-      let trim = this.extractText(card, '[data-testid="item-subtitle"]') || 
-                 this.extractText(card, '.subtitle') || 
-                 this.extractText(card, '[class*="subtitle"]');
-
-      // Blacklist for UI status messages that are not actual trim levels
-      const blacklist = ['המודעה נשמרה', 'נשמר', 'saved', 'ad saved', 'השוואה', 'compare'];
-
-      // If trim is just a duplicate or looks like year/hand/price/status, clear it
-      const isBadTrim = (t) => {
-        if (!t) return true;
-        const low = t.toLowerCase();
-        return low === title.toLowerCase() || 
-               low === year || 
-               low.includes('יד') || 
-               low.includes('₪') || 
-               low.includes('км') ||
-               low.includes('ק"מ') ||
-               blacklist.some(b => low.includes(blacklist.indexOf(b) !== -1 ? b : b.toLowerCase()));
-      };
-      
-      if (isBadTrim(trim)) {
-        trim = '';
-        const titleIndex = spans.indexOf(title);
-        if (titleIndex !== -1) {
-          // Check following spans but strictly avoid the blacklist
-          for (let i = titleIndex + 1; i < titleIndex + 8 && i < spans.length; i++) {
-            const c = spans[i];
-            if (c && c.length > 3 && !isBadTrim(c)) {
-              trim = c;
-              break;
-            }
-          }
-        }
-      }
-
+      // If mileage is not visible, it will be empty here, but JSON might have it.
       let mileage = '';
       const mileageMatch = spans.find(t => t.includes('ק"מ') || /[\d,]+\s*km/i.test(t));
       if (mileageMatch) mileage = mileageMatch.replace(/[^0-9]/g, '');
 
-      const linkEl = card.querySelector('a[href*="/item/"]') || card.querySelector('a');
       let link = '';
+      const linkEl = card.querySelector('a[href*="/item/"]') || card.querySelector('a');
       if (linkEl) {
         const href = linkEl.getAttribute('href') || '';
         link = href.startsWith('http') ? href : 'https://www.yad2.co.il' + (href.startsWith('/') ? '' : '/') + href;
@@ -139,7 +103,7 @@ if (!window.Yad2Parser) {
       return {
         id: link || `${title}_${priceText}_${year}`,
         title,
-        trim,
+        trim: '', // In DOM mode, trim is hard to get reliably without noise
         price: this.parsePrice(priceText),
         city: '', 
         mileage,
@@ -148,7 +112,7 @@ if (!window.Yad2Parser) {
         engine: '', 
         gearbox: '',
         link,
-        accident: this.detectAccident(card.innerText || ''),
+        accident: false,
         notes: '',
         updatedAt: new Date().toISOString()
       };
@@ -165,12 +129,6 @@ if (!window.Yad2Parser) {
       if (!text) return '';
       const clean = text.replace(/[^0-9]/g, '');
       return clean.length > 1 ? clean : '';
-    },
-
-    detectAccident(text) {
-      if (!text) return false;
-      const keywords = ['תאונה', 'פגיעה', 'שלדה', 'accident', 'repair', 'damage', 'קצה שלדה', 'ירידת ערך'];
-      return keywords.some(word => text.toLowerCase().includes(word.toLowerCase()));
     }
   };
 }
